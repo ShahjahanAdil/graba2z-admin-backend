@@ -16,17 +16,22 @@ const axios = require('axios');
 const app = express();
 
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 // Middleware
 // app.use(cors({
 //     origin: 'http://1.2.7', // Replace with your frontend URL 
 //     methods: ['GET', 'POST'],
 //     credentials: true
 // }));
+// app.use(cors({
+//     origin: '*', // Or specify allowed origin(s)
+//     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+//     allowedHeaders: ['Content-Type', 'Authorization']
+// }));
 app.use(cors({
-    origin: '*', // Or specify allowed origin(s)
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    origin: 'https://admin-graba2z.netlify.app', // ✅ exact frontend origin
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.options('*', cors()); // Handle preflight
 
@@ -2555,32 +2560,32 @@ app.get('/api/products', async (req, res) => {
 });
 
 // GET - Single Product
-app.get('/api/products/:id', async (req, res) => {
-    const { id } = req.params;
+// app.get('/api/products/:id', async (req, res) => {
+//     const { id } = req.params;
 
-    try {
-        const [rows] = await db.query('SELECT * FROM products WHERE id = ?', [id]);
+//     try {
+//         const [rows] = await db.query('SELECT * FROM products WHERE id = ?', [id]);
 
-        if (rows.length === 0) {
-            return res.status(404).json({ message: 'Product not found' });
-        }
+//         if (rows.length === 0) {
+//             return res.status(404).json({ message: 'Product not found' });
+//         }
 
-        // Parse image_paths if it exists
-        const product = rows[0];
-        if (product.image_paths) {
-            try {
-                product.image_paths = JSON.parse(product.image_paths);
-            } catch (e) {
-                // If parsing fails, keep as is (might be comma-separated)
-            }
-        }
+//         // Parse image_paths if it exists
+//         const product = rows[0];
+//         if (product.image_paths) {
+//             try {
+//                 product.image_paths = JSON.parse(product.image_paths);
+//             } catch (e) {
+//                 // If parsing fails, keep as is (might be comma-separated)
+//             }
+//         }
 
-        res.json({ product });
-    } catch (error) {
-        console.error('Error fetching product:', error);
-        res.status(500).json({ message: 'Server error' });
-    }
-});
+//         res.json({ product });
+//     } catch (error) {
+//         console.error('Error fetching product:', error);
+//         res.status(500).json({ message: 'Server error' });
+//     }
+// });
 // app.post('/api/products', authenticate, upload.array('images', 4), async (req, res) => {
 //     try {
 //         // console.log('Request Body:', req.body); // Log incoming data for debugging
@@ -3460,24 +3465,73 @@ app.get('/api/products/exportXLS', authenticate, async (req, res) => {
     }
 });
 // API to fetch a product by ID
-app.get('/api/products/:id', authenticate, async (req, res) => {
-    const productId = req.params.id;
+// app.get('/api/products/:id', authenticate, async (req, res) => {
+//     const productId = req.params.id;
+
+//     try {
+//         // console.log('Fetching product with ID:', productId); // Debug log
+//         const sql = `SELECT * FROM products WHERE id = ?`;
+//         const [rows] = await db.query(sql, [productId]);
+
+//         if (rows.length === 0) {
+//             // console.log('No product found for ID:', productId); // Debug log
+//             return res.status(404).json({ message: 'Product not found' });
+//         }
+
+//         // console.log('Fetched Product:', rows[0]); // Debug log
+//         res.status(200).json({ product: rows[0] });
+//     } catch (err) {
+//         console.error('Error fetching product:', err.message);
+//         res.status(500).json({ message: 'Error fetching product', error: err.message });
+//     }
+// });
+app.get('/api/products/:id', async (req, res) => {
+    const { id } = req.params;
 
     try {
-        // console.log('Fetching product with ID:', productId); // Debug log
-        const sql = `SELECT * FROM products WHERE id = ?`;
-        const [rows] = await db.query(sql, [productId]);
+        const [rows] = await db.query(`
+        SELECT 
+          p.*, 
+          c.name AS category_name, 
+          b.name AS brand_name
+        FROM products p
+        LEFT JOIN product_categories c ON p.category = c.id
+        LEFT JOIN product_brands b ON p.brand = b.id
+        WHERE p.id = ?
+      `, [id]);
 
         if (rows.length === 0) {
-            // console.log('No product found for ID:', productId); // Debug log
             return res.status(404).json({ message: 'Product not found' });
         }
 
-        // console.log('Fetched Product:', rows[0]); // Debug log
-        res.status(200).json({ product: rows[0] });
-    } catch (err) {
-        console.error('Error fetching product:', err.message);
-        res.status(500).json({ message: 'Error fetching product', error: err.message });
+        const product = rows[0];
+
+        // Parse image_paths
+        try {
+            product.image_paths = product.image_paths ? JSON.parse(product.image_paths) : [];
+        } catch {
+            product.image_paths = product.image_paths?.split(',') || [];
+        }
+
+        // Parse specifications
+        try {
+            product.specifications = product.specifications ? JSON.parse(product.specifications) : [];
+        } catch {
+            product.specifications = [];
+        }
+
+        // Parse details
+        try {
+            product.details = product.details ? JSON.parse(product.details) : [];
+        } catch {
+            product.details = [];
+        }
+
+        res.json({ product });
+
+    } catch (error) {
+        console.error('Error fetching product:', error);
+        res.status(500).json({ message: 'Server error' });
     }
 });
 
@@ -4175,6 +4229,206 @@ app.get('/api/products/:id', authenticate, async (req, res) => {
 //         res.status(500).json({ error: 'Error processing Excel file' });
 //     }
 // });
+// app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => {
+//     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+//     let insertedCount = 0;
+//     let skippedCount = 0;
+
+//     try {
+//         const workbook = xlsx.readFile(req.file.path);
+//         const sheet = workbook.Sheets[workbook.SheetNames[0]];
+//         const data = xlsx.utils.sheet_to_json(sheet);
+
+//         const uploadsDir = path.join(__dirname, '../Uploads');
+//         if (!fs.existsSync(uploadsDir)) {
+//             fs.mkdirSync(uploadsDir, { recursive: true });
+//         }
+
+//         const productsToInsert = [];
+
+//         for (const row of data) {
+//             const name = row.Name?.trim();
+//             const sku = row.SKU?.trim();
+//             if (!name || !sku) continue;
+
+//             const [existingProduct] = await db.query('SELECT id FROM products WHERE sku = ? OR name = ?', [sku, name]);
+//             if (existingProduct.length > 0) {
+//                 skippedCount++;
+//                 continue;
+//             }
+
+//             let categoryId = null;
+//             let brandId = null;
+//             let specifications = [];
+//             let details = [];
+//             let localImageFilename = '';
+//             let localImagePaths = [];
+
+//             let slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
+//             const [slugExists] = await db.query('SELECT id FROM products WHERE slug = ?', [slug]);
+//             if (slugExists.length > 0) slug += '-' + Date.now();
+
+//             if (row.brand) {
+//                 const [existingBrand] = await db.query('SELECT id FROM product_brands WHERE name = ?', [row.brand]);
+//                 if (existingBrand.length > 0) {
+//                     brandId = existingBrand[0].id;
+//                 } else {
+//                     const [insertBrand] = await db.query('INSERT INTO product_brands (name, status) VALUES (?, "Active")', [row.brand]);
+//                     brandId = insertBrand.insertId;
+//                 }
+//             }
+
+//             try {
+//                 if (row.specifications && typeof row.specifications === 'string') {
+//                     specifications = JSON.parse(row.specifications.replace(/'/g, '"'));
+//                 }
+//                 if (row.details && typeof row.details === 'string') {
+//                     details = JSON.parse(row.details.replace(/'/g, '"'));
+//                 }
+//             } catch (err) {
+//                 console.warn(`⚠️ Parsing issue for ${name}: ${err.message}`);
+//             }
+
+//             if (row.category) {
+//                 const [existingCategory] = await db.query('SELECT id FROM product_categories WHERE name = ?', [row.category]);
+//                 if (existingCategory.length > 0) {
+//                     categoryId = existingCategory[0].id;
+//                 } else {
+//                     let parentId = null;
+//                     if (row.parent_category) {
+//                         const [parentCat] = await db.query('SELECT id FROM product_categories WHERE name = ?', [row.parent_category]);
+//                         if (parentCat.length > 0) parentId = parentCat[0].id;
+//                     }
+//                     const [insertCategory] = await db.query(
+//                         'INSERT INTO product_categories (name, status, specs, parent_category) VALUES (?, "Active", ?, ?)',
+//                         [row.category, JSON.stringify(specifications), parentId]
+//                     );
+//                     categoryId = insertCategory.insertId;
+//                 }
+//             }
+
+//             if (row.image_path && row.image_path.startsWith('http')) {
+//                 try {
+//                     const imageExt = path.extname(row.image_path).split('?')[0] || '.png';
+//                     const fileName = Date.now() + imageExt;
+//                     const filePath = path.join(uploadsDir, fileName);
+
+//                     const response = await axios({
+//                         url: row.image_path,
+//                         method: 'GET',
+//                         responseType: 'stream'
+//                     });
+
+//                     await new Promise((resolve, reject) => {
+//                         const stream = response.data.pipe(fs.createWriteStream(filePath));
+//                         stream.on('finish', () => {
+//                             localImageFilename = `Uploads/${fileName}`;
+//                             resolve();
+//                         });
+//                         stream.on('error', reject);
+//                     });
+//                 } catch (err) {
+//                     console.warn(`⚠️ Main image download failed for ${row.image_path}: ${err.message}`);
+//                 }
+//             }
+
+//             if (row.image_paths && typeof row.image_paths === 'string') {
+//                 const imageUrls = row.image_paths.split(',').map(url => url.trim());
+//                 for (const url of imageUrls) {
+//                     if (!url.startsWith('http')) continue;
+//                     try {
+//                         const imageExt = path.extname(url).split('?')[0] || '.png';
+//                         const fileName = Date.now() + '-' + Math.floor(Math.random() * 1000) + imageExt;
+//                         const filePath = path.join(uploadsDir, fileName);
+
+//                         const response = await axios({
+//                             url: url,
+//                             method: 'GET',
+//                             responseType: 'stream'
+//                         });
+
+//                         await new Promise((resolve, reject) => {
+//                             const stream = response.data.pipe(fs.createWriteStream(filePath));
+//                             stream.on('finish', () => {
+//                                 localImagePaths.push(`Uploads/${fileName}`);
+//                                 resolve();
+//                             });
+//                             stream.on('error', reject);
+//                         });
+//                     } catch (err) {
+//                         console.warn(`⚠️ Additional image download failed for ${url}: ${err.message}`);
+//                     }
+//                 }
+//             }
+
+//             productsToInsert.push([
+//                 sku,
+//                 slug,
+//                 categoryId,
+//                 row.barcode || '',
+//                 row.buying_price || 0,
+//                 row.selling_price || 0,
+//                 row.offer_price || 0,
+//                 row.tax || 'VAT-1',
+//                 brandId,
+//                 'Active',
+//                 'Yes',
+//                 'Enable',
+//                 'Yes',
+//                 row.max_purchase_quantity || 10,
+//                 row.low_stock_warning || 5,
+//                 row.unit || 'unit',
+//                 row.weight || 0,
+//                 row.tags || '',
+//                 row.description || '',
+//                 localImageFilename,
+//                 JSON.stringify(localImagePaths),
+//                 row.discount || 0,
+//                 JSON.stringify(specifications),
+//                 JSON.stringify(details),
+//                 name
+//             ]);
+
+//             insertedCount++;
+//         }
+
+//         if (productsToInsert.length > 0) {
+//             await db.query(`
+//           INSERT INTO products (
+//             sku, slug, category, barcode, buying_price, selling_price, offer_price, tax, brand,
+//             status, can_purchasable, show_stock_out, refundable, max_purchase_quantity, low_stock_warning, unit,
+//             weight, tags, description, image_path, image_paths, discount,
+//             specifications, details, name
+//           ) VALUES ?
+//         `, [productsToInsert]);
+//         }
+
+//         fs.unlinkSync(req.file.path);
+
+//         res.json({
+//             message: 'Excel import completed.',
+//             inserted: insertedCount,
+//             skipped: skippedCount
+//         });
+//     } catch (err) {
+//         console.error('❌ Upload Error:', err);
+//         if (req.file?.path && fs.existsSync(req.file.path)) {
+//             fs.unlinkSync(req.file.path);
+//         }
+//         res.status(500).json({ error: 'Error processing Excel file' });
+//     }
+// });
+
+const safeJsonParse = (str) => {
+    try {
+        return JSON.parse(str);
+    } catch (e) {
+        console.warn('❗ Invalid JSON string:', str);
+        return [];
+    }
+};
+
 app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
@@ -4187,9 +4441,7 @@ app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => 
         const data = xlsx.utils.sheet_to_json(sheet);
 
         const uploadsDir = path.join(__dirname, '../Uploads');
-        if (!fs.existsSync(uploadsDir)) {
-            fs.mkdirSync(uploadsDir, { recursive: true });
-        }
+        if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
         const productsToInsert = [];
 
@@ -4215,6 +4467,7 @@ app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => 
             const [slugExists] = await db.query('SELECT id FROM products WHERE slug = ?', [slug]);
             if (slugExists.length > 0) slug += '-' + Date.now();
 
+            // Handle brand
             if (row.brand) {
                 const [existingBrand] = await db.query('SELECT id FROM product_brands WHERE name = ?', [row.brand]);
                 if (existingBrand.length > 0) {
@@ -4225,17 +4478,15 @@ app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => 
                 }
             }
 
-            try {
-                if (row.specifications && typeof row.specifications === 'string') {
-                    specifications = JSON.parse(row.specifications.replace(/'/g, '"'));
-                }
-                if (row.details && typeof row.details === 'string') {
-                    details = JSON.parse(row.details.replace(/'/g, '"'));
-                }
-            } catch (err) {
-                console.warn(`⚠️ Parsing issue for ${name}: ${err.message}`);
+            // Safe parse JSON fields
+            if (row.specifications && typeof row.specifications === 'string') {
+                specifications = safeJsonParse(row.specifications.replace(/'/g, '"'));
+            }
+            if (row.details && typeof row.details === 'string') {
+                details = safeJsonParse(row.details.replace(/'/g, '"'));
             }
 
+            // Handle category
             if (row.category) {
                 const [existingCategory] = await db.query('SELECT id FROM product_categories WHERE name = ?', [row.category]);
                 if (existingCategory.length > 0) {
@@ -4254,31 +4505,29 @@ app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => 
                 }
             }
 
+            // Main image download
             if (row.image_path && row.image_path.startsWith('http')) {
                 try {
                     const imageExt = path.extname(row.image_path).split('?')[0] || '.png';
                     const fileName = Date.now() + imageExt;
                     const filePath = path.join(uploadsDir, fileName);
 
-                    const response = await axios({
-                        url: row.image_path,
-                        method: 'GET',
-                        responseType: 'stream'
-                    });
+                    const response = await axios({ url: row.image_path, method: 'GET', responseType: 'stream' });
 
                     await new Promise((resolve, reject) => {
                         const stream = response.data.pipe(fs.createWriteStream(filePath));
                         stream.on('finish', () => {
-                            localImageFilename = `Uploads/${fileName}`;
+                            localImageFilename = `Uploads / ${fileName}`;
                             resolve();
                         });
                         stream.on('error', reject);
                     });
                 } catch (err) {
-                    console.warn(`⚠️ Main image download failed for ${row.image_path}: ${err.message}`);
+                    console.warn(`⚠ Main image download failed for ${row.image_path}: ${err.message}`);
                 }
             }
 
+            // Multiple gallery images
             if (row.image_paths && typeof row.image_paths === 'string') {
                 const imageUrls = row.image_paths.split(',').map(url => url.trim());
                 for (const url of imageUrls) {
@@ -4288,26 +4537,23 @@ app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => 
                         const fileName = Date.now() + '-' + Math.floor(Math.random() * 1000) + imageExt;
                         const filePath = path.join(uploadsDir, fileName);
 
-                        const response = await axios({
-                            url: url,
-                            method: 'GET',
-                            responseType: 'stream'
-                        });
+                        const response = await axios({ url: url, method: 'GET', responseType: 'stream' });
 
                         await new Promise((resolve, reject) => {
                             const stream = response.data.pipe(fs.createWriteStream(filePath));
                             stream.on('finish', () => {
-                                localImagePaths.push(`Uploads/${fileName}`);
+                                localImagePaths.push(`Uploads / ${fileName}`);
                                 resolve();
                             });
                             stream.on('error', reject);
                         });
                     } catch (err) {
-                        console.warn(`⚠️ Additional image download failed for ${url}: ${err.message}`);
+                        console.warn(`⚠ Gallery image failed for ${url}: ${err.message}`);
                     }
                 }
             }
 
+            // Prepare final insert data
             productsToInsert.push([
                 sku,
                 slug,
@@ -4350,21 +4596,23 @@ app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => 
         `, [productsToInsert]);
         }
 
-        fs.unlinkSync(req.file.path);
+        fs.unlinkSync(req.file.path); // cleanup temp file
 
         res.json({
             message: 'Excel import completed.',
             inserted: insertedCount,
             skipped: skippedCount
         });
+
     } catch (err) {
         console.error('❌ Upload Error:', err);
         if (req.file?.path && fs.existsSync(req.file.path)) {
             fs.unlinkSync(req.file.path);
         }
-        res.status(500).json({ error: 'Error processing Excel file' });
+        res.status(500).json({ error: 'Error processing Excel file', details: err.message });
     }
 });
+
 // app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => {
 //     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
