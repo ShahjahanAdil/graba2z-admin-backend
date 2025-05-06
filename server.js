@@ -4420,7 +4420,15 @@ app.get('/api/products/:id', async (req, res) => {
 //     }
 // });
 
-jo select kia ha iski jaga ya rakhna ha
+const safeJsonParse = (str) => {
+    try {
+      return JSON.parse(str);
+    } catch (e) {
+      console.warn('❗ Invalid JSON string:', str);
+      return [];
+    }
+  };
+
 
 app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
