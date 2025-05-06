@@ -4420,14 +4420,7 @@ app.get('/api/products/:id', async (req, res) => {
 //     }
 // });
 
-const safeJsonParse = (str) => {
-    try {
-        return JSON.parse(str);
-    } catch (e) {
-        console.warn('❗ Invalid JSON string:', str);
-        return [];
-    }
-};
+jo select kia ha iski jaga ya rakhna ha
 
 app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
@@ -4450,6 +4443,7 @@ app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => 
             const sku = row.SKU?.trim();
             if (!name || !sku) continue;
 
+            // Skip if product exists
             const [existingProduct] = await db.query('SELECT id FROM products WHERE sku = ? OR name = ?', [sku, name]);
             if (existingProduct.length > 0) {
                 skippedCount++;
@@ -4467,7 +4461,7 @@ app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => 
             const [slugExists] = await db.query('SELECT id FROM products WHERE slug = ?', [slug]);
             if (slugExists.length > 0) slug += '-' + Date.now();
 
-            // Handle brand
+            // Handle brand: Check if the brand exists, otherwise insert it
             if (row.brand) {
                 const [existingBrand] = await db.query('SELECT id FROM product_brands WHERE name = ?', [row.brand]);
                 if (existingBrand.length > 0) {
@@ -4478,7 +4472,7 @@ app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => 
                 }
             }
 
-            // Safe parse JSON fields
+            // Safe parse JSON fields for specifications and details
             if (row.specifications && typeof row.specifications === 'string') {
                 specifications = safeJsonParse(row.specifications.replace(/'/g, '"'));
             }
@@ -4486,7 +4480,7 @@ app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => 
                 details = safeJsonParse(row.details.replace(/'/g, '"'));
             }
 
-            // Handle category
+            // Handle category: Check if category exists, otherwise insert it
             if (row.category) {
                 const [existingCategory] = await db.query('SELECT id FROM product_categories WHERE name = ?', [row.category]);
                 if (existingCategory.length > 0) {
@@ -4505,7 +4499,7 @@ app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => 
                 }
             }
 
-            // Main image download
+            // Main image download if the image path is provided
             if (row.image_path && row.image_path.startsWith('http')) {
                 try {
                     const imageExt = path.extname(row.image_path).split('?')[0] || '.png';
@@ -4517,13 +4511,13 @@ app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => 
                     await new Promise((resolve, reject) => {
                         const stream = response.data.pipe(fs.createWriteStream(filePath));
                         stream.on('finish', () => {
-                            localImageFilename = `Uploads / ${fileName}`;
+                            localImageFilename = Uploads/${fileName};
                             resolve();
                         });
                         stream.on('error', reject);
                     });
                 } catch (err) {
-                    console.warn(`⚠ Main image download failed for ${row.image_path}: ${err.message}`);
+                    console.warn(⚠ Main image download failed for ${row.image_path}: ${err.message});
                 }
             }
 
@@ -4542,18 +4536,18 @@ app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => 
                         await new Promise((resolve, reject) => {
                             const stream = response.data.pipe(fs.createWriteStream(filePath));
                             stream.on('finish', () => {
-                                localImagePaths.push(`Uploads / ${fileName}`);
+                                localImagePaths.push(Uploads/${fileName});
                                 resolve();
                             });
                             stream.on('error', reject);
                         });
                     } catch (err) {
-                        console.warn(`⚠ Gallery image failed for ${url}: ${err.message}`);
+                        console.warn(⚠ Gallery image failed for ${url}: ${err.message});
                     }
                 }
             }
 
-            // Prepare final insert data
+            // Prepare the product data for insertion
             productsToInsert.push([
                 sku,
                 slug,
@@ -4587,13 +4581,13 @@ app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => 
 
         if (productsToInsert.length > 0) {
             await db.query(`
-          INSERT INTO products (
-            sku, slug, category, barcode, buying_price, selling_price, offer_price, tax, brand,
-            status, can_purchasable, show_stock_out, refundable, max_purchase_quantity, low_stock_warning, unit,
-            weight, tags, description, image_path, image_paths, discount,
-            specifications, details, name
-          ) VALUES ?
-        `, [productsToInsert]);
+                INSERT INTO products (
+                    sku, slug, category, barcode, buying_price, selling_price, offer_price, tax, brand,
+                    status, can_purchasable, show_stock_out, refundable, max_purchase_quantity, low_stock_warning, unit,
+                    weight, tags, description, image_path, image_paths, discount,
+                    specifications, details, name
+                ) VALUES ?
+            `, [productsToInsert]);
         }
 
         fs.unlinkSync(req.file.path); // cleanup temp file
@@ -4612,7 +4606,6 @@ app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => 
         res.status(500).json({ error: 'Error processing Excel file', details: err.message });
     }
 });
-
 // app.post('/api/products/uploadFile', upload.single('file'), async (req, res) => {
 //     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
